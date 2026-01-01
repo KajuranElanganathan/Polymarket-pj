@@ -1,57 +1,79 @@
 import requests
 import json 
 import time
-
-
+from db import Whale, Trade, SessionLocal
 
 def find_wallet():
+
+    db = SessionLocal()
 
     URL = "https://data-api.polymarket.com/trades"
 
     params = {
-    "limit": 1000,
-    #"user":wallet
-
+    "limit": 2000,
     }
-    response = requests.get(URL,params=params)
+    print("scanning trades")
+    
+    try:
+        response = requests.get(URL,params=params)
+        trades = response.json()
+    except Exception as e:
+        print(e)
+        db.close()
+        return
 
-    trades = response.json()
-
-    whale_wallets = []
-
-
+    
     for trade in trades:
 
-        size = trade.get("size")
+        try:
+            size = float(trade.get("size", 0))
+        except ValueError:
+            size = 0
 
         if (size > 5000):
-            whale_wallets.append(trade.get("proxyWallet"))
+            db_trade = Trade(
 
+                wallet_address = trade.get("proxyWallet"),
+                size = size,
+                side = trade.get("side"),
+                price = trade.get("price"),
+                timestamp =int(trade.get("timestamp")),
+                asset = trade.get("asset"),
 
-    return whale_wallets
+            )
+    
+            db.add(db_trade)
+    
 
-
-def find_user(whale_wallets):
-
-    URL = "https://gamma-api.polymarket.com/public-profile"
-
-    userNames =[]
-
-    for wallet in whale_wallets:
-        params = {
-
-            "address": wallet,
-
-        }
-        response = requests.get(URL,params=params)
-        x = response.json()
-        
-        userNames.append(x.get("name"))
-
-    print(userNames)
+    try:
+        print("success")
+        db.commit()
+    except Exception as e:
+        print(e)
+    finally:
+        db.close()
 
 
 
-wal = find_wallet()
+if __name__ == "__main__":
 
-find_user(wal)
+    while True:
+        print("tracking in progress")
+
+        try:
+            find_wallet()
+
+            sleep_time = 80
+
+            print("waiting")
+
+            time.sleep(sleep_time)
+
+        except KeyboardInterrupt:
+
+            print("Stopping tracker")
+            break
+        except Exception as e:
+            print(e)
+
+            time.sleep(60)
