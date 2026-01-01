@@ -30,7 +30,7 @@ def find_wallet():
         except ValueError:
             size = 0
 
-        if (size > 5000):
+        if (size > 10000):
             db_trade = Trade(
 
                 wallet_address = trade.get("proxyWallet"),
@@ -66,6 +66,7 @@ if __name__ == "__main__":
             sleep_time = 80
 
             print("waiting")
+
 
             time.sleep(sleep_time)
 

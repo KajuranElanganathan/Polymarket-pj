@@ -15,21 +15,25 @@ class Whale(Base):
     __tablename__ = "whales"
 
     address = Column(String,primary_key=True)
-
     username = Column(String,nullable=True)
-
     is_tracked = Column(Boolean,default=True)
+    total_r_pnl = Column(Float, default=0.0)
+    total_u_pnl = Column(Float, default=0.0)
 
 class Trade(Base):
     __tablename__ = "trades"
-
     id = Column(Integer, primary_key=True, autoincrement=True)
     wallet_address = Column(String, index=True)
     asset = Column(String)          
     side = Column(String)           
     size = Column(Float)           
     price = Column(Float)           
-    timestamp = Column(BigInteger)  
+    timestamp = Column(BigInteger)
+    
+    #Status: 'OPEN' (Active), 'CLOSED' (Event Finished), 'SOLD' (Exited early)
+    status = Column(String, default="OPEN")
+    realized_pnl = Column(Float, default=0.0)
+    unrealized_pnl = Column(Float, default=0.0)
 
 def init_db():
     try:
@@ -37,7 +41,6 @@ def init_db():
 
     except Exception as e:
         print(e)
-
 
 
 init_db()
