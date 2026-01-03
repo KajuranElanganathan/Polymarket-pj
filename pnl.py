@@ -8,11 +8,13 @@ def CalcUnrealizedPnL():
     db = SessionLocal()
 
     rows = db.query(Trade).filter(Trade.status=="OPEN").all()
-    print(f"🔄 Starting audit on {len(rows)} trades...")
+    print(f" Starting UPnL Calculattions on {len(rows)} trades...")
 
 
     for row in rows:
 
+
+        ##unrealized pnl calculations, find market price with buy
         params = {
         "token_id" : str(row.asset),
         "side" :"BUY",
@@ -23,12 +25,11 @@ def CalcUnrealizedPnL():
             data = res.json()
             
             if data.get("error") and "No orderbook exists for the requested token id" in data["error"]:
-                print("market closed")
+                print("market is closed, trade now marked as closed")
                 row.status = "CLOSED"
 
 
             elif data.get("price"):
-
 
                     current_price = float(data.get("price")) 
                     pnl_per_share = current_price - row.price
@@ -36,7 +37,7 @@ def CalcUnrealizedPnL():
                     row.unrealized_pnl = pnl_per_share * row.size
 
                     
-                    print(f"✅ PnL Update: ${row.unrealized_pnl:,.2f}")
+                    print(f" PnL Update: ${row.unrealized_pnl:,.2f}")
 
         
         except Exception as e:
@@ -46,7 +47,32 @@ def CalcUnrealizedPnL():
 
     db.commit()
     db.close()
+    
+
+def CalcRealizedPnL():
+    
+    db = SessionLocal()
+
+    rows = db.query(Trade).filter(Trade.status=="CLOSED").all()
+
+    print(f"Starting RPnL Calculattions on {len(rows)} trades...")
+
+    URL = "https://gamma-api.polymarket.com/markets"
+
+    for row in rows:
+         
+        params = {
+              
+            "clob_token_ids" : str(row.asset)
+
+        }
+
+        res = requests.get(URL,params = params)
+    
+        data = res.json()
+        print(data[0].get("closed"))
 
 
 if __name__ == "__main__":
-    CalcUnrealizedPnL()
+    ##CalcUnrealizedPnL()
+    CalcRealizedPnL()
