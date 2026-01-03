@@ -15,7 +15,6 @@ def CalcUnrealizedPnL():
 
     for row in rows:
 
-
         ##unrealized pnl calculations, find market price with buy
         params = {
         "token_id" : str(row.asset),
@@ -96,6 +95,64 @@ def CalcRealizedPnL():
         Trade.asset.in_(WLmap.keys())
     ).distinct().all()
             
+    print("found" + len(groups) + "user positions")
+
+    for wallet,asset in groups:
+        finalPrice = WLmap[asset]
+
+        #find all trades for a wallet and the asset 
+        trades = db.query(Trade).filter(
+            Trade.wallet_address == wallet, 
+            Trade.asset == asset
+        ).order_by(Trade.timestamp.asc()).all()
+
+        #queue to hold all trades for an asset
+        buy_queue = []
+
+        for trade in trades:
+            trade.realized_pnl = 0.0
+
+            if trade.side.lower() == "buy":
+                buy_queue.append({
+                    'entry_price': trade.price,
+                    'remaining': trade.size,
+                    'row': trade
+                })
+
+            elif trade.side.lower() == "sell":
+
+                sellnum = trade.size
+                profit = 0.0
+
+                while sellnum > 0 and buy_queue:
+                    oldest = buy_queue[0]
+                    matched = min(sellnum,oldest["remaining"])
+
+
+                profitOne = (trade.price-oldest["entry_price"]) * matched
+
+                profit += profitOne
+                sellnum -= matched
+                oldest["remaining"] -=matched
+
+                if oldest['remaining'] <= 0:
+                    buy_queue.pop(0)
+ 
+            
+            trade.realized_pnl = profit
+            trade.status = "SOLD"
+        
+        #if existing shares held till resolved
+        for item in buy_queue:
+            if item['remaining'] > 0:
+                res_profit = (finalPrice - item['entry_price']) * item['remaining']
+                
+                item['row'].realized_pnl += res_profit
+                item['row'].status = "CLOSED"
+
+        db.commit()
+        db.close()
+
 
 
 
