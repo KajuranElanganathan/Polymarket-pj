@@ -2,6 +2,8 @@ from db import Whale, Trade, SessionLocal, create_engine
 from sqlalchemy import select
 import requests
 import time
+import json 
+
 
 def CalcUnrealizedPnL():
 
@@ -52,12 +54,14 @@ def CalcUnrealizedPnL():
 def CalcRealizedPnL():
     
     db = SessionLocal()
-
     rows = db.query(Trade).filter(Trade.status=="CLOSED").all()
 
     print(f"Starting RPnL Calculattions on {len(rows)} trades...")
 
     URL = "https://gamma-api.polymarket.com/markets"
+
+    WLmap = {}
+
 
     for row in rows:
          
@@ -70,7 +74,29 @@ def CalcRealizedPnL():
         res = requests.get(URL,params = params)
     
         data = res.json()
-        print(data[0].get("closed"))
+
+        marketClosure = data[0].get("closed")
+    
+        if (marketClosure):
+            
+            #load as list
+            id_list = json.loads(data[0]['clobTokenIds'])     
+            price_list = json.loads(data[0]['outcomePrices'])
+
+
+            indexlist = id_list.index(str(row.asset))
+
+            WLmap[str(row.asset)] = indexlist
+
+
+    print(WLmap)
+
+
+    groups = db.query(Trade.wallet_address, Trade.asset).filter(
+        Trade.asset.in_(WLmap.keys())
+    ).distinct().all()
+            
+
 
 
 if __name__ == "__main__":
