@@ -1,86 +1,83 @@
-from db import Whale, Trade, SessionLocal, create_engine
-from sqlalchemy import select
+from db import Whale, Trade, SessionLocal
+from sqlalchemy import func
+import json
 import requests
-import time
-import json 
 
+# whale criteria
+THRESHOLD_VOLUME = 1000.0   
+THRESHOLD_PNL = 10000.0       
+THRESHOLD_COUNT = 50        
 
-def updateRPnL():
-
+def scanWhales():
     db = SessionLocal()
-    print("Finding whales")
+    print(f"   Criteria: Vol>${THRESHOLD_VOLUME} | PnL>${THRESHOLD_PNL} | Trades>{THRESHOLD_COUNT}")
 
-
-    wallets = db.query(Trade.wallet_address).filter(Trade.status == "CLOSED").distinct().all()
+    wallets = db.query(Trade.walletess).distinct().all()
+    
+    print(f"Scanning {len(wallets)} unique wallets")
+    
+    whales_added = 0
 
     for (wallet,) in wallets:
+        if not wallet: 
+            continue
 
-        PnLCounter= 0.0
+        stats = db.query(
+            func.count(Trade.id),               
+            func.sum(Trade.size * Trade.price)  
+        ).filter(Trade.wallet_address == wallet).first()
+        
+        trade_count = stats[0]
+        total_volume = stats[1]
 
-        trades = db.query(Trade).filter(
-            Trade.wallet_address == wallet, 
-        ).order_by(Trade.timestamp.asc()).all()
+        r_pnl = db.query(func.sum(Trade.realized_pnl)).filter(
+            Trade.wallet_address == wallet
+        ).scalar() 
+        u_pnl = db.query(func.sum(Trade.unrealized_pnl)).filter(
+            Trade.wallet_address == wallet,
+            Trade.status == "OPEN"
+        ).scalar()
 
-        for trade in trades:
+        is_high_volume = total_volume >= THRESHOLD_VOLUME
+        is_high_rpnl = r_pnl >= THRESHOLD_PNL
+        is_active = trade_count >= THRESHOLD_COUNT
+        
+        isWhale = is_high_volume or is_high_rpnl or is_active
+        
+        existing_whale = db.query(Whale).filter(Whale.address == wallet).first()
 
-            if trade.realized_pnl:
-                PnLCounter += trade.realized_pnl
-    
-        entry = db.query(Whale).filter(Whale.address == wallet).first()
+        if isWhale:
 
-        if (entry):
-            entry.total_r_pnl =PnLCounter
-
+            if existing_whale:
+                existing_whale.total_r_pnl = r_pnl
+                existing_whale.total_u_pnl = u_pnl
+                existing_whale.total_volume = total_volume
+                existing_whale.trade_count = trade_count
+                existing_whale.is_tracked = True 
+            else:
+                new_whale = Whale(
+                    address=wallet,
+                    username=None,
+                    is_tracked=True,
+                    total_r_pnl=r_pnl,
+                    total_u_pnl=u_pnl,
+                    total_volume=total_volume,
+                    trade_count=trade_count
+                )
+                db.add(new_whale)
+            
+            whales_added += 1
+            
         else:
-            db_wallet = Whale(
-                is_tracked = True,
-                address = wallet,
-                total_r_pnl = PnLCounter,
-                total_u_pnl = 0.0
-            )
-            db.add(db_wallet)
+            if existing_whale:
+                existing_whale.is_tracked = False
+            
 
     db.commit()
     db.close()
-
-                
-def updateUPnL():
-    db = SessionLocal()
-    print("Finding whales")
-
-    wallets = db.query(Trade.wallet_address).filter(Trade.status == "OPEN").distinct().all()
-
-    for (wallet,) in wallets:
-
-        PnLCounter= 0.0
-
-        trades = db.query(Trade).filter(
-            Trade.wallet_address == wallet, 
-        ).order_by(Trade.timestamp.asc()).all()
-
-        for trade in trades:
-
-            if trade.unrealized_pnl:
-                PnLCounter += trade.unrealized_pnl
     
-        entry = db.query(Whale).filter(Whale.address == wallet).first()
 
-        if (entry):
-            entry.total_u_pnl = PnLCounter
-
-        else:
-            db_wallet = Whale(
-                is_tracked = True,
-                address = wallet,
-                total_r_pnl = 0.0,
-                total_u_pnl = PnLCounter
-            )
-            db.add(db_wallet)
-
-    db.commit()
-    db.close()
-
-
+    print("complete,sucess")
 
 def findUserName():
     db = SessionLocal() 
@@ -111,42 +108,6 @@ def findUserName():
     db.commit()
     db.close()
 
-def calculate_volume():
-    db = SessionLocal()
-    
-    wallets = db.query(Trade.wallet_address).distinct().all()
-    
-    for (wallet,) in wallets:
-        total_volume = 0.0
-        
-        trades = db.query(Trade).filter(Trade.wallet_address == wallet).all()
-        
-        for trade in trades:
-            total_volume += trade.size * trade.price
-        
-        whale = db.query(Whale).filter(Whale.address == wallet).first()
-        
-        if whale:
-            whale.total_volume = total_volume
-        else:
-            whale = Whale(
-                address=wallet,
-                total_volume=total_volume,
-                is_tracked=False  
-            )
-            db.add(whale)
-    
-    db.commit()
-    db.close()
-
-def calculate_trade_count():
-    db = SessionLocal()
-    
-    whales = db.query(Whale).all()
-    
-    for whale in whales:
-        count = db.query(Trade).filter(Trade.wallet_address == whale.address).count()
-        whale.trade_count = count
-    
-    db.commit()
-    db.close()
+if __name__ == "__main__":
+    scanWhales()
+    findUserName()

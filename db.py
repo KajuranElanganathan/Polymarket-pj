@@ -23,6 +23,11 @@ class Whale(Base):
     is_tracked = Column(Boolean,default=True)
     total_r_pnl = Column(Float, default=0.0)
     total_u_pnl = Column(Float, default=0.0)
+    total_volume= Column(Float, default=0.0)
+    trade_count = Column(Integer, default=0)
+    
+
+
 
 class Trade(Base):
     __tablename__ = "trades"
@@ -38,6 +43,8 @@ class Trade(Base):
     status = Column(String, default="OPEN")
     realized_pnl = Column(Float, default=0.0)
     unrealized_pnl = Column(Float, default=0.0)
+
+
 
 def init_db():
     try:
