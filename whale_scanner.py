@@ -66,7 +66,7 @@ def updateUPnL():
         entry = db.query(Whale).filter(Whale.address == wallet).first()
 
         if (entry):
-            entry.total_u_pnl ==PnLCounter
+            entry.total_u_pnl = PnLCounter
 
         else:
             db_wallet = Whale(
@@ -77,5 +77,36 @@ def updateUPnL():
             )
             db.add(db_wallet)
 
+    db.commit()
+    db.close()
+
+
+
+def findUserName():
+    db = SessionLocal() 
+    
+    # take all wales in db
+    whales = db.query(Whale).all()
+
+    for whale in whales:
+        if whale.username:
+            continue
+
+        try:
+            URL = "https://gamma-api.polymarket.com/public-profile"
+            
+            params = {
+                "address": whale.address 
+            }
+            
+            res = requests.get(URL, params=params)
+            data = res.json()
+
+            if data.get("name"):
+                whale.username = data.get("name")
+                
+        except Exception as e:
+            print(f"Error: {e}")
+    
     db.commit()
     db.close()
