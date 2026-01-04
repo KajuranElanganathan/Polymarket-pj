@@ -61,12 +61,12 @@ def updateUPnL():
         for trade in trades:
 
             if trade.unrealized_pnl:
-                PnLCounter = trade.unrealized_pnl
+                PnLCounter += trade.unrealized_pnl
     
         entry = db.query(Whale).filter(Whale.address == wallet).first()
 
         if (entry):
-            entry.total_u_pnl +=PnLCounter
+            entry.total_u_pnl ==PnLCounter
 
         else:
             db_wallet = Whale(
