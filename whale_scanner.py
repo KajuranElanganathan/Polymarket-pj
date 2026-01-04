@@ -85,7 +85,7 @@ def updateUPnL():
 def findUserName():
     db = SessionLocal() 
     
-    # take all wales in db
+    # take all whales in db
     whales = db.query(Whale).all()
 
     for whale in whales:
@@ -107,6 +107,46 @@ def findUserName():
                 
         except Exception as e:
             print(f"Error: {e}")
+    
+    db.commit()
+    db.close()
+
+def calculate_volume():
+    db = SessionLocal()
+    
+    wallets = db.query(Trade.wallet_address).distinct().all()
+    
+    for (wallet,) in wallets:
+        total_volume = 0.0
+        
+        trades = db.query(Trade).filter(Trade.wallet_address == wallet).all()
+        
+        for trade in trades:
+            total_volume += trade.size * trade.price
+        
+        whale = db.query(Whale).filter(Whale.address == wallet).first()
+        
+        if whale:
+            whale.total_volume = total_volume
+        else:
+            whale = Whale(
+                address=wallet,
+                total_volume=total_volume,
+                is_tracked=False  
+            )
+            db.add(whale)
+    
+    db.commit()
+    db.close()
+
+def calculate_trade_count():
+    db = SessionLocal()
+    
+    whales = db.query(Whale).all()
+    
+    for whale in whales:
+        count = db.query(Trade).filter(Trade.wallet_address == whale.address).count()
+        whale.trade_count = count
     
     db.commit()
     db.close()
