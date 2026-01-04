@@ -4,15 +4,15 @@ import json
 import requests
 
 # whale criteria
-THRESHOLD_VOLUME = 1000.0   
-THRESHOLD_PNL = 10000.0       
-THRESHOLD_COUNT = 50        
+THRESHOLD_VOLUME = 50_000.0   
+THRESHOLD_PNL = 5_000.0       
+THRESHOLD_COUNT = 10       
 
 def scanWhales():
     db = SessionLocal()
     print(f"   Criteria: Vol>${THRESHOLD_VOLUME} | PnL>${THRESHOLD_PNL} | Trades>{THRESHOLD_COUNT}")
 
-    wallets = db.query(Trade.walletess).distinct().all()
+    wallets = db.query(Trade.wallet_address).distinct().all()
     
     print(f"Scanning {len(wallets)} unique wallets")
     
@@ -27,22 +27,22 @@ def scanWhales():
             func.sum(Trade.size * Trade.price)  
         ).filter(Trade.wallet_address == wallet).first()
         
-        trade_count = stats[0]
-        total_volume = stats[1]
+        trade_count = stats[0] or 0.0
+        total_volume = stats[1] or 0.0
 
         r_pnl = db.query(func.sum(Trade.realized_pnl)).filter(
             Trade.wallet_address == wallet
-        ).scalar() 
+        ).scalar() or 0.0
         u_pnl = db.query(func.sum(Trade.unrealized_pnl)).filter(
             Trade.wallet_address == wallet,
             Trade.status == "OPEN"
-        ).scalar()
+        ).scalar() or 0.0
 
         is_high_volume = total_volume >= THRESHOLD_VOLUME
         is_high_rpnl = r_pnl >= THRESHOLD_PNL
         is_active = trade_count >= THRESHOLD_COUNT
         
-        isWhale = is_high_volume or is_high_rpnl or is_active
+        isWhale = is_high_volume and is_high_rpnl and is_active
         
         existing_whale = db.query(Whale).filter(Whale.address == wallet).first()
 
