@@ -51,65 +51,73 @@ def CalcUnrealizedPnL():
     
 
 def CalcRealizedPnL():
-    
     db = SessionLocal()
-    rows = db.query(Trade).filter(Trade.status=="CLOSED").all()
+    
+    #find all unique trade/assets.
+    unique_assets = db.query(Trade.asset).filter(Trade.status == "CLOSED").distinct().all()
 
-    print(f"Starting RPnL Calculattions on {len(rows)} trades...")
+    print(f" Found {len(unique_assets)} unique assets")
 
     URL = "https://gamma-api.polymarket.com/markets"
+    WLmap = {} # Stores w/l resolution
 
-    WLmap = {}
+    for (asset_id,) in unique_assets:
+        params = {"clob_token_ids": str(asset_id)}
+        
+        try:
+            res = requests.get(URL, params=params)
+            data = res.json()
 
-
-    for row in rows:
-         
-        params = {
-              
-            "clob_token_ids" : str(row.asset)
-
-        }
-
-        res = requests.get(URL,params = params)
-    
-        data = res.json()
-
-        marketClosure = data[0].get("closed")
-    
-        if (marketClosure):
+            # Safety check
+            if data and data[0].get("closed"):
+                market = data[0]
+                
+                # Parse the strings
+                try:
+                    id_list = json.loads(market.get('clobTokenIds', '[]'))     
+                    price_list = json.loads(market.get('outcomePrices', '[]')) # ["1", "0"]
+                    
+                    if str(asset_id) in id_list:
+                        index = id_list.index(str(asset_id))
+                        
+                        # BUG FIX 1: Get the PRICE, not the INDEX
+                        final_price = float(price_list[index]) 
+                        WLmap[str(asset_id)] = final_price
+                        
+                except Exception as e:
+                    print(f"Parse error: {e}")
+        
+        except Exception as e:
+            print(f"API error: {e}")
             
-            #load as list
-            id_list = json.loads(data[0]['clobTokenIds'])     
-            price_list = json.loads(data[0]['outcomePrices'])
+        time.sleep(0.2) # Rate limit
 
-
-            indexlist = id_list.index(str(row.asset))
-
-            WLmap[str(row.asset)] = indexlist
-
-
-    print(WLmap)
-
+    # --- STEP 2: Replay the Trades ---
+    
+    # Only get users who traded assets that we successfully resolved above
+    if not WLmap:
+        print("No resolved assets found.")
+        return
 
     groups = db.query(Trade.wallet_address, Trade.asset).filter(
         Trade.asset.in_(WLmap.keys())
     ).distinct().all()
             
-    print("found" + len(groups) + "user positions")
+    print(f"🔄 Replaying history for {len(groups)} user positions...")
 
-    for wallet,asset in groups:
+    for wallet, asset in groups:
         finalPrice = WLmap[asset]
 
-        #find all trades for a wallet and the asset 
+        # Get chronological history
         trades = db.query(Trade).filter(
             Trade.wallet_address == wallet, 
             Trade.asset == asset
         ).order_by(Trade.timestamp.asc()).all()
 
-        #queue to hold all trades for an asset
-        buy_queue = []
+        buy_queue = [] # FIFO Inventory
 
         for trade in trades:
+            # Reset current PnL to 0 to avoid double counting
             trade.realized_pnl = 0.0
 
             if trade.side.lower() == "buy":
@@ -120,38 +128,39 @@ def CalcRealizedPnL():
                 })
 
             elif trade.side.lower() == "sell":
-
                 sellnum = trade.size
                 profit = 0.0
 
+                # BUG FIX 2: INDENTATION IS CRITICAL HERE
                 while sellnum > 0 and buy_queue:
                     oldest = buy_queue[0]
-                    matched = min(sellnum,oldest["remaining"])
+                    matched = min(sellnum, oldest["remaining"])
 
+                    # Math happens inside the loop
+                    profitOne = (trade.price - oldest["entry_price"]) * matched
+                    profit += profitOne
+                    
+                    # Decrement counters INSIDE the loop
+                    sellnum -= matched
+                    oldest["remaining"] -= matched
 
-                profitOne = (trade.price-oldest["entry_price"]) * matched
+                    if oldest['remaining'] <= 0.00001: # Float safety
+                        buy_queue.pop(0)
 
-                profit += profitOne
-                sellnum -= matched
-                oldest["remaining"] -=matched
-
-                if oldest['remaining'] <= 0:
-                    buy_queue.pop(0)
- 
-            
-            trade.realized_pnl = profit
-            trade.status = "SOLD"
+                trade.realized_pnl = profit
+                trade.status = "SOLD"
         
-        #if existing shares held till resolved
         for item in buy_queue:
             if item['remaining'] > 0:
                 res_profit = (finalPrice - item['entry_price']) * item['remaining']
                 
+                # Attribute profit to the original Buy row
                 item['row'].realized_pnl += res_profit
                 item['row'].status = "CLOSED"
 
-        db.commit()
-        db.close()
+    db.commit()
+    db.close()
+    print("PnL Calculation done.")
 
 
 
