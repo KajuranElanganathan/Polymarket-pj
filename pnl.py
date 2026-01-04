@@ -33,6 +33,7 @@ def CalcUnrealizedPnL():
             elif data.get("price"):
 
                     current_price = float(data.get("price")) 
+                    
                     pnl_per_share = current_price - row.price
 
                     row.unrealized_pnl = pnl_per_share * row.size
@@ -165,5 +166,5 @@ def CalcRealizedPnL():
 
 
 if __name__ == "__main__":
-    ##CalcUnrealizedPnL()
+    CalcUnrealizedPnL()
     CalcRealizedPnL()
