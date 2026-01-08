@@ -126,7 +126,7 @@ def CalcRealizedPnL():
                     'remaining': trade.size,
                     'row': trade
                 })
-
+    
             elif trade.side.lower() == "sell":
                 sellnum = trade.size
                 profit = 0.0
