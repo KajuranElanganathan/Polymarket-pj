@@ -4,6 +4,8 @@ from db import SessionLocal, Trade, Whale
 from typing import List, Optional
 import requests
 from sqlalchemy import desc
+from fastapi.middleware.cors import CORSMiddleware
+
 
 
 def get_top_markets_by_volume():
@@ -36,6 +38,14 @@ def get_db():
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows your React app to connect
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/")
 def root():
@@ -52,19 +62,17 @@ def getData():
 
 
 @app.get("/whales")
-def get_whales(db: Session = Depends(get_db)): # <--- Uses the safety valve    db = SessionLocal()
+def get_whales(db: Session = Depends(get_db)): 
 
     whales = db.query(Whale).all()
-    db.close()
 
     return whales
 
 
 @app.get("/trades")
-def get_trades(skip: int = 0, limit: int = 50):    
-    db = SessionLocal()
+def get_trades(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):    
     trades = db.query(Trade).order_by(desc(Trade.timestamp)).offset(skip).limit(limit).all()
-    db.close()
+    
     return trades
 
 
