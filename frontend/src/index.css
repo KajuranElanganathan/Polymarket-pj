@@ -9,49 +9,87 @@
 
   html {
     @apply scroll-smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
-    background-image: 
-      radial-gradient(ellipse at 20% 20%, hsl(217, 91%, 60%, 0.08) 0%, transparent 50%),
-      radial-gradient(ellipse at 80% 80%, hsl(270, 70%, 50%, 0.08) 0%, transparent 50%),
-      radial-gradient(ellipse at 50% 50%, hsl(222, 47%, 8%) 0%, hsl(222, 47%, 6%) 100%);
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% 10%, hsl(210, 100%, 52%, 0.04) 0%, transparent 50%),
+      radial-gradient(ellipse 60% 40% at 80% 90%, hsl(262, 60%, 55%, 0.03) 0%, transparent 50%),
+      linear-gradient(180deg, hsl(220, 20%, 4%) 0%, hsl(220, 20%, 3%) 100%);
     background-attachment: fixed;
     min-height: 100vh;
   }
 
+  ::selection {
+    @apply bg-primary/20 text-foreground;
+  }
+
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-muted/30 rounded-full;
+    @apply bg-transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-muted rounded-full;
+    @apply bg-muted/60 rounded-full;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted/80;
+    @apply bg-muted;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary/50 ring-offset-2 ring-offset-background;
   }
 }
 
 @layer components {
   .glass-card {
-    @apply bg-card/80 backdrop-blur-xl border border-border/50 rounded-xl shadow-card;
+    @apply bg-card/90 backdrop-blur-2xl border border-white/5 rounded-xl shadow-card;
   }
 
-  .glow-text {
-    text-shadow: 0 0 40px hsl(217, 91%, 60%, 0.5);
+  .glass-card-hover {
+    @apply hover:bg-card hover:border-white/10 hover:shadow-card-hover transition-all duration-300;
+  }
+
+  .stat-card {
+    @apply relative overflow-hidden rounded-xl border border-white/5 bg-card/80;
+  }
+
+  .stat-card::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-500;
+  }
+
+  .stat-card:hover::before {
+    @apply opacity-100;
   }
 }
 
 @layer utilities {
   .text-gradient {
-    @apply bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent;
-    background-size: 200% auto;
+    background: linear-gradient(135deg, hsl(210, 100%, 52%) 0%, hsl(262, 60%, 55%) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-glow {
+    text-shadow: 0 0 80px hsl(210, 100%, 52%, 0.3);
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }

@@ -12,29 +12,33 @@ const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
         opacity: 1,
-        transition: { staggerChildren: 0.1, delayChildren: 0.8 },
+        transition: { staggerChildren: 0.08, delayChildren: 0.6 },
     },
 };
 
 const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
+    hidden: { opacity: 0, y: 15 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
 };
 
 export function StatPills() {
     return (
-        <motion.div variants={containerVariants} initial="hidden" animate="visible" className="flex flex-wrap justify-center gap-3 md:gap-4">
+        <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="flex flex-wrap justify-center gap-3"
+        >
             {stats.map((stat) => (
                 <motion.div
                     key={stat.label}
                     variants={itemVariants}
-                    whileHover={{ scale: 1.05, y: -2 }}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border/40 bg-card/60 backdrop-blur-md shadow-lg hover:border-primary/30 transition-colors"
+                    className="flex items-center gap-3 px-5 py-3 rounded-xl border border-white/[0.04] bg-white/[0.02] backdrop-blur-sm"
                 >
-                    <stat.icon className="h-4 w-4 text-primary/70" />
-                    <div className="flex flex-col">
-                        <span className="text-lg font-bold text-foreground">{stat.value}</span>
-                        <span className="text-xs text-muted-foreground">{stat.label}</span>
+                    <stat.icon className="h-4 w-4 text-primary/60" />
+                    <div>
+                        <span className="text-base font-bold text-foreground tabular-nums">{stat.value}</span>
+                        <span className="text-xs text-muted-foreground/60 ml-1.5">{stat.label}</span>
                     </div>
                 </motion.div>
             ))}

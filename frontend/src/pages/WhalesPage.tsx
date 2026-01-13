@@ -1,13 +1,12 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Users, Wallet, TrendingUp, Activity, Search, Eye } from "lucide-react";
+import { Users, Wallet, TrendingUp, Activity, ExternalLink } from "lucide-react";
 import { useWhales } from "@/lib/hooks";
 import { PageHeader } from "@/components/PageHeader";
 import { SummaryCard } from "@/components/SummaryCard";
 import { JsonViewerDialog } from "@/components/JsonViewerDialog";
 import { ErrorState } from "@/components/ErrorState";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -17,8 +16,6 @@ import type { Whale } from "@/lib/api";
 export function WhalesPage() {
     const { data: whales, isLoading, isError, refetch } = useWhales();
     const [selectedWhale, setSelectedWhale] = useState<Whale | null>(null);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [minVolume, setMinVolume] = useState("");
 
     const stats = useMemo(() => {
         if (!whales?.length) return { count: 0, totalVolume: 0, avgVolume: 0, maxVolume: 0 };
@@ -27,122 +24,134 @@ export function WhalesPage() {
         let maxVolume = 0;
 
         whales.forEach((w) => {
-            const vol = w.total_volume || 0;
+            const vol = typeof w.total_volume === "number" && isFinite(w.total_volume) ? w.total_volume : 0;
             totalVolume += vol;
             if (vol > maxVolume) maxVolume = vol;
         });
 
         return {
             count: whales.length,
-            totalVolume,
-            avgVolume: whales.length > 0 ? totalVolume / whales.length : 0,
-            maxVolume,
+            totalVolume: isFinite(totalVolume) ? totalVolume : 0,
+            avgVolume: whales.length > 0 && isFinite(totalVolume) ? totalVolume / whales.length : 0,
+            maxVolume: isFinite(maxVolume) ? maxVolume : 0,
         };
     }, [whales]);
 
-    const filteredWhales = useMemo(() => {
-        if (!whales) return [];
-        let result = [...whales];
-
-        if (searchQuery) {
-            const q = searchQuery.toLowerCase();
-            result = result.filter((w) =>
-                w.address.toLowerCase().includes(q) || (w.username && w.username.toLowerCase().includes(q))
-            );
-        }
-
-        if (minVolume) {
-            const min = parseFloat(minVolume);
-            if (!isNaN(min)) result = result.filter((w) => (w.total_volume || 0) >= min);
-        }
-
-        return result;
-    }, [whales, searchQuery, minVolume]);
-
     if (isError) {
         return (
-            <div className="min-h-screen pt-24 px-4">
+            <div className="min-h-screen pt-24 px-5">
                 <div className="max-w-7xl mx-auto">
-                    <ErrorState title="Failed to load whales" message="Check if the API is running." onRetry={() => refetch()} />
+                    <ErrorState title="Unable to load whale data" message="Please check your connection and try again." onRetry={() => refetch()} />
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen pt-24 pb-12 px-4">
+        <div className="min-h-screen pt-20 pb-16 px-5">
             <div className="max-w-7xl mx-auto">
-                <PageHeader title="Whale Tracker" description="Monitor high-volume traders and their activity">
+                <PageHeader title="Whale Tracker" description="Monitor high-volume traders and their market activity">
                     <Button onClick={() => refetch()} variant="outline" size="sm">Refresh</Button>
                 </PageHeader>
 
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}
-                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.1 }}
+                    className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-10"
+                >
                     <SummaryCard title="Total Whales" value={stats.count} icon={Users} isLoading={isLoading} />
-                    <SummaryCard title="Total Volume" value={formatNumber(stats.totalVolume)} icon={Wallet} isLoading={isLoading} />
-                    <SummaryCard title="Largest Whale" value={formatNumber(stats.maxVolume)} icon={TrendingUp} isLoading={isLoading} />
-                    <SummaryCard title="Average Volume" value={formatNumber(stats.avgVolume)} icon={Activity} isLoading={isLoading} />
+                    <SummaryCard title="Combined Volume" value={formatNumber(stats.totalVolume)} icon={Wallet} isLoading={isLoading} />
+                    <SummaryCard title="Top Whale" value={formatNumber(stats.maxVolume)} icon={TrendingUp} isLoading={isLoading} />
+                    <SummaryCard title="Avg Volume" value={formatNumber(stats.avgVolume)} icon={Activity} isLoading={isLoading} />
                 </motion.div>
 
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.15 }}
-                    className="mb-6 flex flex-wrap gap-4">
-                    <div className="relative flex-1 min-w-[200px] max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="Search by address or username..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
-                    </div>
-                    <div className="w-full sm:w-auto">
-                        <Input type="number" placeholder="Min volume..." value={minVolume} onChange={(e) => setMinVolume(e.target.value)} className="w-full sm:w-40" />
-                    </div>
-                </motion.div>
-
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.2 }}>
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.2 }}
+                >
                     {isLoading ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                             {[1, 2, 3, 4, 5, 6].map((i) => (
-                                <Card key={i}><CardContent className="p-6 space-y-3"><Skeleton className="h-5 w-32" /><Skeleton className="h-4 w-24" /><Skeleton className="h-4 w-20" /></CardContent></Card>
+                                <Card key={i}>
+                                    <CardContent className="p-5 space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <Skeleton className="h-5 w-32" />
+                                            <Skeleton className="h-5 w-16 rounded-full" />
+                                        </div>
+                                        <Skeleton className="h-4 w-24" />
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <Skeleton className="h-12" />
+                                            <Skeleton className="h-12" />
+                                        </div>
+                                    </CardContent>
+                                </Card>
                             ))}
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {filteredWhales.map((whale, i) => (
-                                <motion.div key={whale.address} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: i * 0.05 }}>
-                                    <Card className="hover:border-primary/30 transition-colors cursor-pointer" onClick={() => setSelectedWhale(whale)}>
-                                        <CardContent className="p-6">
-                                            <div className="flex items-start justify-between mb-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {whales?.map((whale, i) => (
+                                <motion.div
+                                    key={whale.address}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.4, delay: Math.min(i * 0.05, 0.4) }}
+                                >
+                                    <Card
+                                        className="group cursor-pointer hover:border-white/[0.08] transition-all duration-300"
+                                        onClick={() => setSelectedWhale(whale)}
+                                    >
+                                        <CardContent className="p-5">
+                                            <div className="flex items-start justify-between mb-3">
                                                 <div>
-                                                    <p className="font-medium text-foreground">{whale.username || truncateAddress(whale.address)}</p>
-                                                    <p className="text-xs text-muted-foreground font-mono">{truncateAddress(whale.address)}</p>
+                                                    <p className="font-medium text-foreground text-sm">
+                                                        {whale.username || truncateAddress(whale.address)}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground/70 font-mono mt-0.5">
+                                                        {truncateAddress(whale.address)}
+                                                    </p>
                                                 </div>
-                                                <Badge variant={whale.is_tracked ? "success" : "outline"}>{whale.is_tracked ? "Tracked" : "Inactive"}</Badge>
+                                                <Badge variant={whale.is_tracked ? "success" : "outline"} className="text-xs">
+                                                    {whale.is_tracked ? "Active" : "Inactive"}
+                                                </Badge>
                                             </div>
 
-                                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                            <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-4">
                                                 <div>
-                                                    <p className="text-xs text-muted-foreground">Total Volume</p>
-                                                    <p className="text-sm font-semibold">{formatNumber(whale.total_volume)}</p>
+                                                    <p className="text-xs text-muted-foreground/70 mb-0.5">Volume</p>
+                                                    <p className="text-sm font-semibold tabular-nums">{formatNumber(whale.total_volume)}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-xs text-muted-foreground">Trade Count</p>
-                                                    <p className="text-sm font-semibold">{whale.trade_count}</p>
+                                                    <p className="text-xs text-muted-foreground/70 mb-0.5">Trades</p>
+                                                    <p className="text-sm font-semibold tabular-nums">{whale.trade_count?.toLocaleString() || "0"}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-xs text-muted-foreground">Realized PnL</p>
-                                                    <p className={`text-sm font-semibold ${whale.total_r_pnl >= 0 ? "text-green-500" : "text-red-500"}`}>{formatNumber(whale.total_r_pnl)}</p>
+                                                    <p className="text-xs text-muted-foreground/70 mb-0.5">Realized P&L</p>
+                                                    <p className={`text-sm font-semibold tabular-nums ${(whale.total_r_pnl || 0) >= 0 ? "text-success" : "text-destructive"}`}>
+                                                        {formatNumber(whale.total_r_pnl)}
+                                                    </p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-xs text-muted-foreground">Unrealized PnL</p>
-                                                    <p className={`text-sm font-semibold ${whale.total_u_pnl >= 0 ? "text-green-500" : "text-red-500"}`}>{formatNumber(whale.total_u_pnl)}</p>
+                                                    <p className="text-xs text-muted-foreground/70 mb-0.5">Unrealized P&L</p>
+                                                    <p className={`text-sm font-semibold tabular-nums ${(whale.total_u_pnl || 0) >= 0 ? "text-success" : "text-destructive"}`}>
+                                                        {formatNumber(whale.total_u_pnl)}
+                                                    </p>
                                                 </div>
                                             </div>
 
-                                            <Button variant="ghost" size="sm" className="w-full gap-1"><Eye className="h-3 w-3" /> View Details</Button>
+                                            <div className="flex items-center justify-end pt-3 border-t border-white/[0.04]">
+                                                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-primary transition-colors" />
+                                            </div>
                                         </CardContent>
                                     </Card>
                                 </motion.div>
                             ))}
 
-                            {!filteredWhales.length && !isLoading && (
-                                <div className="col-span-full py-12 text-center text-muted-foreground">No whales found 🐋</div>
+                            {(!whales || whales.length === 0) && (
+                                <div className="col-span-full py-16 text-center text-muted-foreground">
+                                    <p className="text-sm">No whales found</p>
+                                </div>
                             )}
                         </div>
                     )}
