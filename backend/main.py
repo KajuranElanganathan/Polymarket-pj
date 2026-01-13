@@ -12,7 +12,7 @@ def get_top_markets_by_volume():
     URL = "https://gamma-api.polymarket.com/markets"
 
     params = {
-        "limit": 9,              
+        "limit": 50,              
         "order": "volume",       
         "ascending": "false",    
         "closed": "false",       

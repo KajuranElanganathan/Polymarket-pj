@@ -1,7 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
-import { TrendingUp, BarChart2, Activity, DollarSign, ChevronUp, ChevronDown, ExternalLink } from "lucide-react";
+import { TrendingUp, BarChart2, Activity, DollarSign, ChevronUp, ChevronDown, ExternalLink, RefreshCw } from "lucide-react";
 import { useMarkets } from "@/lib/hooks";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryClient";
 import { PageHeader } from "@/components/PageHeader";
 import { SummaryCard } from "@/components/SummaryCard";
 import { JsonViewerDialog } from "@/components/JsonViewerDialog";
@@ -10,13 +12,34 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatNumber, truncateText, safeGet } from "@/lib/utils";
 
+/**
+ * Markets Page - displays top markets by volume
+ * 
+ * DATA SOURCE: GET /home endpoint, which fetches from gamma-api.polymarket.com/markets
+ * 
+ * METRICS BREAKDOWN:
+ * - Markets: Count of markets returned from API (markets.length)
+ * - Total Volume: Sum of all market.volume values (API field: "volume")
+ * - Top Market: Maximum volume value across all markets
+ * - Avg Volume: Total Volume / Count of markets with valid volume > 0
+ */
+
 export function MarketsPage() {
-    const { data: markets, isLoading, isError, refetch } = useMarkets();
+    const queryClient = useQueryClient();
+    const { data: markets, isLoading, isError, isFetching } = useMarkets();
     const [selectedMarket, setSelectedMarket] = useState<Record<string, unknown> | null>(null);
     const [sortColumn, setSortColumn] = useState<string | null>("volume");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
-    // Fixed stats calculation with proper edge case handling
+    // Force refresh - invalidates cache and refetches
+    const handleRefresh = useCallback(() => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.markets });
+    }, [queryClient]);
+
+    /**
+     * Calculate summary statistics from markets data
+     * Source: API field "volume" (number, USD value)
+     */
     const stats = useMemo(() => {
         if (!markets || !Array.isArray(markets) || markets.length === 0) {
             return { count: 0, totalVolume: 0, maxVolume: 0, avgVolume: 0 };
@@ -28,9 +51,9 @@ export function MarketsPage() {
 
         markets.forEach((m) => {
             const market = m as Record<string, unknown>;
-            const rawVolume = safeGet<number | string>(market, ["volume", "volumeUSD", "totalVolume"]);
+            // API field: "volume" - represents total trading volume in USD
+            const rawVolume = safeGet<number | string>(market, ["volume"]);
 
-            // Parse volume safely
             let volume = 0;
             if (typeof rawVolume === "number" && isFinite(rawVolume) && rawVolume >= 0) {
                 volume = rawVolume;
@@ -41,15 +64,14 @@ export function MarketsPage() {
                 }
             }
 
-            // Cap extremely large values (prevent display issues)
-            if (volume > 1e15) volume = 0;
-
-            totalVolume += volume;
-            if (volume > maxVolume) maxVolume = volume;
-            if (volume > 0) validVolumeCount++;
+            // Skip invalid or absurdly large values
+            if (volume > 0 && volume < 1e15) {
+                totalVolume += volume;
+                if (volume > maxVolume) maxVolume = volume;
+                validVolumeCount++;
+            }
         });
 
-        // Calculate average only from valid volumes to avoid NaN
         const avgVolume = validVolumeCount > 0 ? totalVolume / validVolumeCount : 0;
 
         return {
@@ -63,9 +85,10 @@ export function MarketsPage() {
     const columns = useMemo(() => {
         if (!markets?.length) return [];
         const sample = markets[0] as Record<string, unknown>;
-        const priorityKeys = ["question", "title", "name", "volume", "liquidity", "endDate"];
+        // Priority columns to display
+        const priorityKeys = ["question", "volume", "liquidity", "endDate"];
         const allKeys = Object.keys(sample);
-        return priorityKeys.filter((k) => allKeys.includes(k)).concat(allKeys.filter((k) => !priorityKeys.includes(k))).slice(0, 5);
+        return priorityKeys.filter((k) => allKeys.includes(k)).slice(0, 4);
     }, [markets]);
 
     const sortedData = useMemo(() => {
@@ -80,7 +103,6 @@ export function MarketsPage() {
                 if (aVal === null || aVal === undefined) return 1;
                 if (bVal === null || bVal === undefined) return -1;
 
-                // Handle numeric comparison
                 const aNum = typeof aVal === "number" ? aVal : parseFloat(String(aVal));
                 const bNum = typeof bVal === "number" ? bVal : parseFloat(String(bVal));
 
@@ -106,24 +128,52 @@ export function MarketsPage() {
         }
     };
 
+    /**
+     * Format cell value based on column type
+     * - volume/liquidity: Format as currency
+     * - endDate: Parse and display as date (source is ISO string from API)
+     */
     const formatCell = (value: unknown, key: string): string => {
         if (value === null || value === undefined) return "—";
 
         const lowerKey = key.toLowerCase();
+
+        // Currency fields
         if (lowerKey.includes("volume") || lowerKey.includes("liquidity")) {
             const num = typeof value === "string" ? parseFloat(value) : Number(value);
             if (!isFinite(num)) return "—";
             return formatNumber(num);
         }
+
+        // Date fields - display the raw ISO date from API as-is for accuracy
+        if (lowerKey.includes("date") || lowerKey.includes("end")) {
+            if (typeof value === "string" && value.includes("T")) {
+                // Parse ISO date and format it
+                try {
+                    const date = new Date(value);
+                    if (!isNaN(date.getTime())) {
+                        return date.toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                        });
+                    }
+                } catch {
+                    // Fall through to raw display
+                }
+            }
+            return String(value);
+        }
+
         if (typeof value === "object") return truncateText(JSON.stringify(value), 25);
-        return truncateText(String(value), 35);
+        return truncateText(String(value), 45);
     };
 
     if (isError) {
         return (
             <div className="min-h-screen pt-24 px-5">
                 <div className="max-w-7xl mx-auto">
-                    <ErrorState title="Unable to load markets" message="Please check your connection and try again." onRetry={() => refetch()} />
+                    <ErrorState title="Unable to load markets" message="Please check your connection and try again." onRetry={handleRefresh} />
                 </div>
             </div>
         );
@@ -133,7 +183,16 @@ export function MarketsPage() {
         <div className="min-h-screen pt-20 pb-16 px-5">
             <div className="max-w-7xl mx-auto">
                 <PageHeader title="Top Markets" description="Highest volume prediction markets by trading activity">
-                    <Button onClick={() => refetch()} variant="outline" size="sm">Refresh</Button>
+                    <Button
+                        onClick={handleRefresh}
+                        variant="outline"
+                        size="sm"
+                        disabled={isFetching}
+                        className="gap-2"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+                        {isFetching ? 'Loading...' : 'Refresh'}
+                    </Button>
                 </PageHeader>
 
                 <motion.div
@@ -156,11 +215,11 @@ export function MarketsPage() {
                     {isLoading ? (
                         <div className="rounded-xl border border-white/[0.04] overflow-hidden bg-card/50">
                             <div className="bg-muted/20 px-5 py-4 border-b border-white/[0.04]">
-                                <div className="flex gap-6">{[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-4 w-20" />)}</div>
+                                <div className="flex gap-6">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-4 w-20" />)}</div>
                             </div>
-                            {[1, 2, 3, 4, 5, 6].map((i) => (
+                            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                                 <div key={i} className="px-5 py-4 border-b border-white/[0.03] last:border-0">
-                                    <div className="flex gap-6">{[1, 2, 3, 4, 5].map((j) => <Skeleton key={j} className="h-4 w-24" />)}</div>
+                                    <div className="flex gap-6">{[1, 2, 3, 4].map((j) => <Skeleton key={j} className="h-4 w-24" />)}</div>
                                 </div>
                             ))}
                         </div>
@@ -177,7 +236,7 @@ export function MarketsPage() {
                                                     className="px-5 py-3.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors select-none"
                                                 >
                                                     <div className="flex items-center gap-1.5">
-                                                        <span>{col.replace(/_/g, " ")}</span>
+                                                        <span>{col === "endDate" ? "End Date" : col.replace(/_/g, " ")}</span>
                                                         {sortColumn === col && (
                                                             <span className="text-primary">
                                                                 {sortDirection === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
@@ -186,7 +245,7 @@ export function MarketsPage() {
                                                     </div>
                                                 </th>
                                             ))}
-                                            <th className="px-5 py-3.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-20"></th>
+                                            <th className="px-5 py-3.5 w-12"></th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/[0.03]">
@@ -195,12 +254,12 @@ export function MarketsPage() {
                                                 key={i}
                                                 initial={{ opacity: 0 }}
                                                 animate={{ opacity: 1 }}
-                                                transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.3) }}
+                                                transition={{ duration: 0.3, delay: Math.min(i * 0.02, 0.4) }}
                                                 className="hover:bg-white/[0.015] transition-colors cursor-pointer group"
                                                 onClick={() => setSelectedMarket(row)}
                                             >
                                                 {columns.map((col) => (
-                                                    <td key={col} className="px-5 py-4 text-sm text-foreground/90 whitespace-nowrap tabular-nums">
+                                                    <td key={col} className="px-5 py-4 text-sm text-foreground/90 tabular-nums">
                                                         {formatCell(row[col], col)}
                                                     </td>
                                                 ))}

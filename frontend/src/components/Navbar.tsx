@@ -2,8 +2,6 @@ import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { BarChart3, Menu, X } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/Button";
-import { ApiStatusBadge } from "@/components/ApiStatusBadge";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
@@ -58,12 +56,7 @@ export function Navbar() {
                         ))}
                     </div>
 
-                    <div className="hidden md:flex items-center gap-3">
-                        <ApiStatusBadge />
-                        <Button variant="outline" size="sm" className="text-sm font-medium">
-                            Sign In
-                        </Button>
-                    </div>
+                    <div className="hidden md:block w-24" />
 
                     <button
                         className="md:hidden p-2 -mr-2 text-muted-foreground hover:text-foreground transition-colors"
@@ -96,10 +89,6 @@ export function Navbar() {
                                     {link.name}
                                 </Link>
                             ))}
-                            <div className="px-4 py-3 border-t border-white/[0.04] mt-2 flex items-center justify-between">
-                                <ApiStatusBadge />
-                                <Button variant="outline" size="sm">Sign In</Button>
-                            </div>
                         </div>
                     </motion.div>
                 )}

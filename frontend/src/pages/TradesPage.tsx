@@ -1,7 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
-import { ArrowDownUp, Clock, Loader2, TrendingUp, Activity, ExternalLink } from "lucide-react";
+import { ArrowDownUp, Clock, Loader2, TrendingUp, Activity, ExternalLink, RefreshCw } from "lucide-react";
 import { useTrades } from "@/lib/hooks";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryClient";
 import { PageHeader } from "@/components/PageHeader";
 import { SummaryCard } from "@/components/SummaryCard";
 import { JsonViewerDialog } from "@/components/JsonViewerDialog";
@@ -12,9 +14,27 @@ import { Badge } from "@/components/ui/Badge";
 import { formatNumber, formatDate, truncateAddress, truncateText } from "@/lib/utils";
 import type { Trade } from "@/lib/api";
 
+/**
+ * Trades Page - displays whale/insider trades
+ * 
+ * DATA SOURCE: GET /trades endpoint from database
+ * 
+ * METRICS BREAKDOWN:
+ * - Total Trades: Count of trades returned (allTrades.length)
+ * - Volume: Sum of (trade.size * trade.price) for all trades
+ * - Buy Orders: Count of trades where side === "buy"
+ * - Sell Orders: Count of trades where side === "sell"
+ */
+
 export function TradesPage() {
-    const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useTrades(50);
+    const queryClient = useQueryClient();
+    const { data, isLoading, isError, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage } = useTrades(50);
     const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
+
+    // Force refresh - invalidates cache and refetches
+    const handleRefresh = useCallback(() => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.tradesInfinite });
+    }, [queryClient]);
 
     const allTrades = useMemo(() => {
         if (!data?.pages) return [];
@@ -50,7 +70,7 @@ export function TradesPage() {
         return (
             <div className="min-h-screen pt-24 px-5">
                 <div className="max-w-7xl mx-auto">
-                    <ErrorState title="Unable to load trades" message="Please check your connection and try again." onRetry={() => refetch()} />
+                    <ErrorState title="Unable to load trades" message="Please check your connection and try again." onRetry={handleRefresh} />
                 </div>
             </div>
         );
@@ -63,7 +83,16 @@ export function TradesPage() {
                     title="Whale / Insider Trades"
                     description="Track high-impact trades from major market participants"
                 >
-                    <Button onClick={() => refetch()} variant="outline" size="sm">Refresh</Button>
+                    <Button
+                        onClick={handleRefresh}
+                        variant="outline"
+                        size="sm"
+                        disabled={isFetching}
+                        className="gap-2"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+                        {isFetching ? 'Loading...' : 'Refresh'}
+                    </Button>
                 </PageHeader>
 
                 <motion.div
