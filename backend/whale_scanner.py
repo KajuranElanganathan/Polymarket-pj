@@ -2,11 +2,12 @@ from db import Whale, Trade, SessionLocal
 from sqlalchemy import func
 import json
 import requests
+import time
 
 # whale criteria
-THRESHOLD_VOLUME = 50_000.0   
-THRESHOLD_PNL = 5_000.0       
-THRESHOLD_COUNT = 10       
+THRESHOLD_VOLUME = 50000.0   
+THRESHOLD_PNL = 5000.0       
+THRESHOLD_COUNT = 5       
 
 def scanWhales():
     db = SessionLocal()
@@ -109,5 +110,8 @@ def findUserName():
     db.close()
 
 if __name__ == "__main__":
-    scanWhales()
-    findUserName()
+
+    while True:
+        scanWhales()
+        findUserName()
+        time.sleep(120)

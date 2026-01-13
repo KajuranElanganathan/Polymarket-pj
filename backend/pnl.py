@@ -166,5 +166,8 @@ def CalcRealizedPnL():
 
 
 if __name__ == "__main__":
-    CalcUnrealizedPnL()
-    CalcRealizedPnL()
+
+    while True:
+        CalcUnrealizedPnL()
+        CalcRealizedPnL()
+        time.sleep(120)

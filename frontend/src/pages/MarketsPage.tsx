@@ -182,7 +182,7 @@ export function MarketsPage() {
     return (
         <div className="min-h-screen pt-20 pb-16 px-5">
             <div className="max-w-7xl mx-auto">
-                <PageHeader title="Top Markets" description="Highest volume prediction markets by trading activity">
+                <PageHeader title="Top Markets" description="Highest volume prediction markets by trading activity currently on the platform">
                     <Button
                         onClick={handleRefresh}
                         variant="outline"

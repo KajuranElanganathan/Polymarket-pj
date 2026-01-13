@@ -2,6 +2,7 @@ import requests
 import json 
 import time
 from db import Whale, Trade, SessionLocal
+from discordbot import send_message
 
 def find_wallet():
 
@@ -31,9 +32,18 @@ def find_wallet():
             size = 0
 
         if (size > 10000):
+
+            wallet = trade.get("proxyWallet")
+
+            found_wallet = db.query(Whale).filter(Whale.address == wallet).first()
+
+            if found_wallet:
+                send_message(f"{found_wallet.username} has made a trade of {size} {trade.get('asset')} for {trade.get('side')} at {trade.get('price')}")
+                
+
             db_trade = Trade(
 
-                wallet_address = trade.get("proxyWallet"),
+                wallet_address = wallet,
                 size = size,
                 side = trade.get("side"),
                 price = trade.get("price"),
